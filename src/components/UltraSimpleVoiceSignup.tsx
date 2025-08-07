@@ -7,8 +7,7 @@ const UltraSimpleVoiceSignup: React.FC = () => {
   const { 
     startVoiceSignup, 
     transcript, 
-    form, 
-    loading, 
+    isProcessing, 
     error, 
     isListening, 
     stopListening 
@@ -44,10 +43,10 @@ const UltraSimpleVoiceSignup: React.FC = () => {
               </div>
             )}
             
-            {loading && (
+            {isProcessing && (
               <div className="text-sm text-orange-600 flex items-center">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
-                분석 중...
+                처리 중...
               </div>
             )}
             
@@ -58,25 +57,12 @@ const UltraSimpleVoiceSignup: React.FC = () => {
             )}
           </div>
 
-          {/* 분석 결과 */}
-          {form && (
-            <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
-              <h4 className="font-medium text-green-800 mb-3">✅ 분석 완료!</h4>
-              <div className="text-sm text-green-700 space-y-2">
-                <div><span className="font-medium">이름:</span> {form.name}</div>
-                <div><span className="font-medium">이메일:</span> {form.email}</div>
-                <div><span className="font-medium">비밀번호:</span> {'*'.repeat(form.password.length)}</div>
-                <div><span className="font-medium">전화번호:</span> {form.phone}</div>
-              </div>
-            </div>
-          )}
-
           {/* 음성 제어 버튼 */}
           <div className="mb-6">
             {!isListening ? (
               <button
                 onClick={startVoiceSignup}
-                disabled={loading}
+                disabled={isProcessing}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-lg"
               >
                 🎤 음성으로 회원가입 시작
@@ -101,21 +87,14 @@ const UltraSimpleVoiceSignup: React.FC = () => {
           </div>
 
           {/* 취소 버튼 */}
-          <button
-            onClick={() => navigate('/')}
-            className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700"
-          >
-            취소
-          </button>
-
-          {/* 성공 메시지 */}
-          {form && !loading && !error && (
-            <div className="mt-4 p-3 bg-green-100 rounded-lg border border-green-300">
-              <p className="text-green-800 text-sm text-center">
-                🎉 회원가입이 완료되었습니다!
-              </p>
-            </div>
-          )}
+          <div className="flex space-x-3">
+            <button
+              onClick={() => navigate('/')}
+              className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 font-medium"
+            >
+              취소
+            </button>
+          </div>
         </div>
       </div>
     </div>

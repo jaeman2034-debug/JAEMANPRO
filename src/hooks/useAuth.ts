@@ -1,6 +1,3 @@
-// Firebase 의존성 제거 - 더미 인증 함수로 대체
-// import { auth } from '../services/firebase'
-
 import { useState, useEffect } from 'react'
 
 // 더미 사용자 타입

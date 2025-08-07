@@ -1,259 +1,227 @@
-import React, { useState, useCallback } from 'react'
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition'
-import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis'
-import { registerUser } from '../firebase/auth'
-import { analyzeSignupIntent } from '../nlu/analyzeSpeechText'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+// Firebase 의존성 제거
+// import { registerUser } from '../firebase/auth'
 
-interface UserData {
+// 더미 회원가입 함수
+const registerUser = async (email: string, _password: string) => {
+  console.log('더미: 회원가입 시도', email)
+  return { success: false, error: 'Firebase가 비활성화되었습니다.' }
+}
+
+interface UserInfo {
   name: string
   email: string
   password: string
   phone: string
 }
 
-const SimpleVoiceSignup: React.FC = () => {
-  const [userData, setUserData] = useState<UserData>({
+export default function SimpleVoiceSignup() {
+  const [currentStep, setCurrentStep] = useState<'name' | 'email' | 'password' | 'phone' | 'complete'>('name')
+  const [userInfo, setUserInfo] = useState<UserInfo>({
     name: '',
     email: '',
     password: '',
     phone: ''
   })
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState('이름을 말씀해주세요.')
   const [isListening, setIsListening] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const recognitionRef = useRef<any>(null)
 
-  const navigate = useNavigate()
-  const { speak } = useSpeechSynthesis()
-  const { transcript, startListening, stopListening } = useSpeechRecognition()
-
-  // 음성 인식 시작
-  const handleStartListening = useCallback(() => {
-    setIsListening(true)
-    setError('')
-    setAnalysisResult(null)
-    speak('회원가입 정보를 말씀해주세요. 이름, 이메일, 비밀번호, 전화번호를 포함해서 말씀해주세요.')
-    startListening()
-  }, [speak, startListening])
-
-  // 음성 인식 중지 및 분석
-  const handleStopListening = useCallback(async () => {
-    setIsListening(false)
-    stopListening()
-    
-    if (transcript.trim()) {
-      try {
-        const result = await analyzeSignupIntent(transcript)
-        setAnalysisResult(result)
-        console.log('🎯 분석 결과:', result)
-        
-        // 분석된 데이터로 폼 업데이트
-        if (result.entities) {
-          setUserData(prev => ({
-            ...prev,
-            name: result.entities.name || prev.name,
-            email: result.entities.email || prev.email,
-            password: result.entities.password || prev.password,
-            phone: result.entities.phone || prev.phone
-          }))
-        }
-        
-        speak('정보가 분석되었습니다. 확인 후 회원가입 버튼을 눌러주세요.')
-      } catch (error) {
-        console.error('분석 실패:', error)
-        setError('음성 분석에 실패했습니다. 다시 시도해주세요.')
-        speak('음성 분석에 실패했습니다. 다시 시도해주세요.')
-      }
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = 'ko-KR'
+      utterance.rate = 1.5
+      speechSynthesis.speak(utterance)
     }
-  }, [transcript, stopListening, speak])
+  }
 
-  // 회원가입 처리
-  const handleSignup = useCallback(async () => {
-    if (!userData.email || !userData.password) {
-      setError('이메일과 비밀번호를 입력해주세요.')
-      speak('이메일과 비밀번호를 입력해주세요.')
+  const startRecognition = () => {
+    if (!('webkitSpeechRecognition' in window)) {
+      alert('이 브라우저는 음성 인식을 지원하지 않습니다.')
       return
     }
-    
-    setIsLoading(true)
-    setError('')
-    
-    try {
-      const result = await registerUser(userData.email, userData.password)
-      if (result.success) {
-        speak('회원가입이 완료되었습니다.')
-        navigate('/login')
-      } else {
-        setError(result.error || '회원가입에 실패했습니다.')
-        speak('회원가입에 실패했습니다.')
-      }
-    } catch (error: any) {
-      setError(error.message)
-      speak('회원가입에 실패했습니다.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [userData, navigate, speak])
 
-  // 입력 필드 변경
-  const handleInputChange = useCallback((field: keyof UserData, value: string) => {
-    setUserData(prev => ({ ...prev, [field]: value }))
+    const recognition = new (window as any).webkitSpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'ko-KR'
+
+    recognition.onstart = () => {
+      setIsListening(true)
+      console.log('음성 인식 시작')
+    }
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript
+      console.log('인식된 음성:', transcript)
+      handleSpeechResult(transcript)
+    }
+
+    recognition.onerror = (event: any) => {
+      console.error('음성 인식 오류:', event.error)
+      setIsListening(false)
+      speak('음성 인식에 실패했습니다. 다시 시도해주세요.')
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+      console.log('음성 인식 종료')
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+  }
+
+  const handleSpeechResult = (text: string) => {
+    switch (currentStep) {
+      case 'name':
+        const name = text.replace(/[^가-힣a-zA-Z\s]/g, '').trim()
+        if (name.length >= 2) {
+          setUserInfo(prev => ({ ...prev, name }))
+          setCurrentStep('email')
+          const nextMessage = '이메일 주소를 말씀해주세요.'
+          setMessage(nextMessage)
+          speak(nextMessage)
+        } else {
+          speak('이름을 다시 말씀해주세요.')
+        }
+        break
+      case 'email':
+        const email = text.toLowerCase().replace(/\s/g, '')
+        if (email.includes('@') && email.includes('.')) {
+          setUserInfo(prev => ({ ...prev, email }))
+          setCurrentStep('password')
+          const nextMessage = '비밀번호를 말씀해주세요.'
+          setMessage(nextMessage)
+          speak(nextMessage)
+        } else {
+          speak('올바른 이메일 주소를 말씀해주세요.')
+        }
+        break
+      case 'password':
+        const password = text.replace(/\s/g, '')
+        if (password.length >= 6) {
+          setUserInfo(prev => ({ ...prev, password }))
+          setCurrentStep('phone')
+          const nextMessage = '전화번호를 말씀해주세요.'
+          setMessage(nextMessage)
+          speak(nextMessage)
+        } else {
+          speak('비밀번호는 6자 이상이어야 합니다. 다시 말씀해주세요.')
+        }
+        break
+      case 'phone':
+        const phone = text.replace(/[^0-9]/g, '')
+        if (phone.length >= 10) {
+          setUserInfo(prev => ({ ...prev, phone }))
+          handleSignup()
+        } else {
+          speak('올바른 전화번호를 말씀해주세요.')
+        }
+        break
+    }
+  }
+
+  const handleSignup = async () => {
+    try {
+      speak('회원가입을 진행하고 있습니다.')
+      setMessage('회원가입을 진행하고 있습니다...')
+      
+      const result = await registerUser(userInfo.email, userInfo.password)
+      
+      if (result.success) {
+        setCurrentStep('complete')
+        const completeMessage = `회원가입이 완료되었습니다! 환영합니다, ${userInfo.name}님.`
+        setMessage(completeMessage)
+        speak(completeMessage)
+      } else {
+        speak('회원가입에 실패했습니다.')
+        setMessage('회원가입에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('회원가입 에러:', error)
+      speak('회원가입에 실패했습니다.')
+      setMessage('회원가입에 실패했습니다.')
+    }
+  }
+
+  useEffect(() => {
+    speak(message)
   }, [])
 
+  if (currentStep === 'complete') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-green-50 px-6">
+        <div className="text-center">
+          <div className="text-6xl mb-4">🎉</div>
+          <h1 className="text-3xl font-bold text-green-800 mb-4">회원가입 완료!</h1>
+          <p className="text-lg text-green-600 mb-6">
+            환영합니다, {userInfo.name}님!
+          </p>
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md">
+            <h2 className="text-xl font-semibold mb-4">가입 정보</h2>
+            <div className="space-y-2 text-left">
+              <p><strong>이름:</strong> {userInfo.name}</p>
+              <p><strong>이메일:</strong> {userInfo.email}</p>
+              <p><strong>전화번호:</strong> {userInfo.phone}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          🎤 간단한 음성 회원가입
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          음성으로 모든 정보를 한 번에 입력하세요
-        </p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-blue-50 px-6">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-blue-800 mb-2">🎤 간단한 음성 회원가입</h1>
+        <p className="text-blue-600">음성으로 간편하게 회원가입하세요</p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* 음성 인식 상태 */}
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-            <div className="flex items-center justify-center mb-2">
-              <div className={`w-3 h-3 rounded-full mr-2 ${
-                isListening ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
-              }`}></div>
-              <span className="text-sm text-blue-700">
-                {isListening ? '음성 인식 중...' : '음성 인식 대기'}
-              </span>
-            </div>
-            
-            {transcript && (
-              <p className="text-sm text-gray-600 mb-2">
-                인식된 음성: {transcript}
-              </p>
-            )}
-            
-            {analysisResult && (
-              <div className="text-sm text-green-600 mb-2">
-                <p>🎯 분석 완료: {analysisResult.intent}</p>
-                {analysisResult.entities && (
-                  <div className="text-purple-600 mt-1">
-                    <p>이름: {analysisResult.entities.name || '미인식'}</p>
-                    <p>이메일: {analysisResult.entities.email || '미인식'}</p>
-                    <p>비밀번호: {analysisResult.entities.password ? '***' : '미인식'}</p>
-                    <p>전화번호: {analysisResult.entities.phone || '미인식'}</p>
-                  </div>
-                )}
-              </div>
-            )}
+      <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+        <div className="text-center mb-6">
+          <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+            isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-500'
+          }`}>
+            <div className="text-white text-2xl">🎤</div>
           </div>
+          <p className="text-lg font-medium text-gray-800 mb-2">
+            {currentStep === 'name' && '이름'}
+            {currentStep === 'email' && '이메일'}
+            {currentStep === 'password' && '비밀번호'}
+            {currentStep === 'phone' && '전화번호'}
+          </p>
+          <p className="text-gray-600">{message}</p>
+        </div>
 
-          {/* 음성 제어 버튼 */}
-          <div className="mb-6 flex space-x-2">
-            <button
-              onClick={handleStartListening}
-              disabled={isListening}
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              🎤 음성 입력 시작
-            </button>
-            
-            {isListening && (
-              <button
-                onClick={handleStopListening}
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700"
-              >
-                ⏹️ 중지
-              </button>
-            )}
+        <button
+          onClick={startRecognition}
+          disabled={isListening}
+          className={`w-full py-3 px-6 rounded-lg font-medium transition-colors ${
+            isListening
+              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
+        >
+          {isListening ? '음성 인식 중...' : '마이크 버튼을 눌러 말씀하세요'}
+        </button>
+
+        <div className="mt-6">
+          <div className="flex justify-between text-sm text-gray-500 mb-2">
+            <span>진행 상황</span>
+            <span>{['name', 'email', 'password', 'phone'].indexOf(currentStep) + 1} / 4</span>
           </div>
-
-          {/* 입력 필드들 */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">이름</label>
-              <input
-                type="text"
-                value={userData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="이름을 입력하세요"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">이메일</label>
-              <input
-                type="email"
-                value={userData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="이메일을 입력하세요"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">비밀번호</label>
-              <input
-                type="password"
-                value={userData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="비밀번호를 입력하세요"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">전화번호</label>
-              <input
-                type="tel"
-                value={userData.phone}
-                onChange={(e) => handleInputChange('phone', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="전화번호를 입력하세요"
-              />
-            </div>
-          </div>
-
-          {/* 오류 메시지 */}
-          {error && (
-            <div className="mt-4 text-red-600 text-sm text-center">
-              {error}
-            </div>
-          )}
-
-          {/* 회원가입 버튼 */}
-          <div className="mt-6">
-            <button
-              onClick={handleSignup}
-              disabled={isLoading || !userData.email || !userData.password}
-              className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50"
-            >
-              {isLoading ? '처리 중...' : '회원가입'}
-            </button>
-          </div>
-
-          {/* 취소 버튼 */}
-          <div className="mt-4">
-            <button
-              onClick={() => navigate('/')}
-              className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700"
-            >
-              취소
-            </button>
-          </div>
-
-          {/* 사용법 안내 */}
-          <div className="mt-6 p-4 bg-yellow-50 rounded-lg">
-            <h4 className="font-medium text-yellow-800 mb-2">💡 사용법</h4>
-            <div className="text-sm text-yellow-700 space-y-1">
-              <p>• "이름은 이재만이고, 이메일은 jaeman2034@gmail.com, 비밀번호는 password123, 전화번호는 01012345678입니다"</p>
-              <p>• 모든 정보를 한 번에 말씀하시면 자동으로 분석됩니다</p>
-              <p>• 분석 후 필요시 수동으로 수정할 수 있습니다</p>
-            </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{
+                width: `${((['name', 'email', 'password', 'phone'].indexOf(currentStep) + 1) / 4) * 100}%`
+              }}
+            ></div>
           </div>
         </div>
       </div>
     </div>
   )
-}
-
-export default SimpleVoiceSignup 
+} 
