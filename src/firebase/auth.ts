@@ -1,93 +1,66 @@
-import { 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  GoogleAuthProvider, 
-  signInWithPopup,
-  type User,
-  onAuthStateChanged as firebaseOnAuthStateChanged
-} from 'firebase/auth'
-import { app } from '../firebase'
+// Firebase Auth를 더미 함수로 대체
+// import { 
+//   getAuth, 
+//   createUserWithEmailAndPassword, 
+//   signInWithEmailAndPassword, 
+//   signOut, 
+//   GoogleAuthProvider, 
+//   signInWithPopup,
+//   type User,
+//   onAuthStateChanged as firebaseOnAuthStateChanged
+// } from 'firebase/auth'
+// import { app } from '../firebase'
 
-const auth = getAuth(app)
-const googleProvider = new GoogleAuthProvider()
+// const auth = getAuth(app)
+// const googleProvider = new GoogleAuthProvider()
 
-// 회원가입
-export const registerUser = async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: any }> => {
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-    return {
-      success: true,
-      user: userCredential.user
-    }
-  } catch (error: any) {
-    console.error('회원가입 실패:', error)
-    return {
-      success: false,
-      error: error.message
-    }
+// 더미 사용자 타입
+interface DummyUser {
+  uid: string
+  email: string | null
+  displayName: string | null
+}
+
+// 더미 함수들
+export const registerUser = async (email: string, password: string): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
+  console.log('더미: 회원가입 시도', email)
+  return {
+    success: false,
+    error: 'Firebase가 비활성화되었습니다.'
   }
 }
 
-// 로그인
-export const loginUser = async (email: string, password: string): Promise<{ success: boolean; user?: User; error?: any }> => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password)
-    return {
-      success: true,
-      user: userCredential.user
-    }
-  } catch (error: any) {
-    console.error('로그인 실패:', error)
-    return {
-      success: false,
-      error: error.message
-    }
+export const loginUser = async (email: string, password: string): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
+  console.log('더미: 로그인 시도', email)
+  return {
+    success: false,
+    error: 'Firebase가 비활성화되었습니다.'
   }
 }
 
-// Google 로그인
-export const loginWithGoogle = async (): Promise<{ success: boolean; user?: User; error?: any }> => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider)
-    return {
-      success: true,
-      user: result.user
-    }
-  } catch (error: any) {
-    console.error('Google 로그인 실패:', error)
-    return {
-      success: false,
-      error: error.message
-    }
+export const loginWithGoogle = async (): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
+  console.log('더미: Google 로그인 시도')
+  return {
+    success: false,
+    error: 'Firebase가 비활성화되었습니다.'
   }
 }
 
-// 로그아웃
 export const logoutUser = async (): Promise<{ success: boolean; error?: any }> => {
-  try {
-    await signOut(auth)
-    return {
-      success: true
-    }
-  } catch (error: any) {
-    console.error('로그아웃 실패:', error)
-    return {
-      success: false,
-      error: error.message
-    }
+  console.log('더미: 로그아웃')
+  return {
+    success: true
   }
 }
 
-// 현재 사용자 가져오기
-export const getCurrentUser = (): User | null => {
-  return auth.currentUser
+export const getCurrentUser = (): DummyUser | null => {
+  return null
 }
 
-// 인증 상태 변경 리스너
-export const onAuthStateChanged = (callback: (user: User | null) => void) => {
-  return firebaseOnAuthStateChanged(auth, callback)
+export const onAuthStateChanged = (callback: (user: DummyUser | null) => void) => {
+  console.log('더미: 인증 상태 변경 리스너')
+  callback(null)
+  return () => {}
 }
 
-export { auth } 
+export const auth = null 

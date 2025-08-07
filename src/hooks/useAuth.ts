@@ -1,71 +1,47 @@
-import { useState, useEffect } from 'react'
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut,
-  onAuthStateChanged,
-  type User
-} from 'firebase/auth'
-import { auth } from '../services/firebase'
+// Firebase 의존성 제거 - 더미 인증 함수로 대체
+// import { auth } from '../services/firebase'
 
+import { useState, useEffect } from 'react'
+
+// 더미 사용자 타입
+interface DummyUser {
+  uid: string
+  email: string | null
+  displayName: string | null
+}
+
+// 더미 인증 훅
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<DummyUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
-      setUser(user)
-      setLoading(false)
-    })
-
-    return unsubscribe
+    // 더미 인증 상태 - 항상 로그아웃 상태
+    setUser(null)
+    setLoading(false)
   }, [])
 
-  const login = async (email: string, password: string) => {
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password)
-      return { success: true, user: result.user }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
+  const signIn = async (email: string, password: string) => {
+    console.log('더미: 로그인 시도', email)
+    return { success: false, error: 'Firebase가 비활성화되었습니다.' }
   }
 
-  const register = async (email: string, password: string) => {
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, password)
-      return { success: true, user: result.user }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
+  const signUp = async (email: string, password: string) => {
+    console.log('더미: 회원가입 시도', email)
+    return { success: false, error: 'Firebase가 비활성화되었습니다.' }
   }
 
-  const loginWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      return { success: true, user: result.user }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
-  }
-
-  const logout = async () => {
-    try {
-      await signOut(auth)
-      return { success: true }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
+  const signOut = async () => {
+    console.log('더미: 로그아웃')
+    setUser(null)
+    return { success: true }
   }
 
   return {
     user,
     loading,
-    login,
-    register,
-    loginWithGoogle,
-    logout
+    signIn,
+    signUp,
+    signOut
   }
 } 

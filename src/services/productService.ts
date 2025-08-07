@@ -1,5 +1,6 @@
-import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore'
-import { db, auth } from '../firebase'
+// Firebase 의존성 제거 - 더미 함수로 대체
+// import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore'
+// import { db, auth } from '../firebase'
 
 export interface Product {
   id?: string
@@ -74,136 +75,27 @@ const convertImageToBase64 = async (file: File): Promise<string> => {
   }
 }
 
-export const uploadProduct = async (
-  productData: Omit<Product, 'id' | 'imageUrl' | 'createdAt'>,
-  imageFile: File
-): Promise<string> => {
-  try {
-    console.log('=== 상품 업로드 시작 ===')
-    console.log('상품 데이터:', productData)
-    console.log('이미지 파일:', imageFile.name, imageFile.size, imageFile.type)
-    
-    // 사용자 인증 상태 확인
-    const currentUser = auth.currentUser
-    console.log('현재 사용자:', currentUser)
-    console.log('사용자 ID:', currentUser?.uid)
-    console.log('사용자 이메일:', currentUser?.email)
-    console.log('사용자 인증 상태:', currentUser ? '로그인됨' : '로그인 안됨')
-    
-    if (!currentUser) {
-      throw new Error('사용자가 로그인되지 않았습니다.')
-    }
-    
-    // Base64 인코딩으로 Firestore에 직접 저장 (압축 포함)
-    console.log('이미지 압축 및 Base64 인코딩 시작...')
-    const base64Image = await convertImageToBase64(imageFile)
-    console.log('최종 Base64 변환 완료, 길이:', base64Image.length, 'bytes')
-    
-    // 크기 제한 재확인
-    if (base64Image.length > 1000000) {
-      throw new Error(`이미지가 너무 큽니다. 크기: ${base64Image.length} bytes (제한: 1MB)`)
-    }
-    
-    const productToSave = {
-      ...productData,
-      imageUrl: base64Image, // 압축된 Base64 이미지 데이터
-      createdAt: new Date(),
-      price: Number(productData.price),
-      userId: currentUser.uid,
-      userName: currentUser.displayName || currentUser.email || '익명'
-    }
-    
-    console.log('저장할 상품 데이터 크기:', JSON.stringify(productToSave).length, 'bytes')
-    console.log('Firestore에 압축된 Base64 이미지와 함께 저장...')
-    
-    const productDoc = await addDoc(collection(db, 'products'), productToSave)
-    console.log('상품 정보 저장 완료:', productDoc.id)
-    console.log('=== 상품 업로드 성공 ===')
-    
-    return productDoc.id
-    
-  } catch (error) {
-    console.error('=== 상품 업로드 에러 ===')
-    console.error('에러 객체:', error)
-    console.error('에러 타입:', typeof error)
-    console.error('에러 메시지:', error instanceof Error ? error.message : 'Unknown error')
-    console.error('에러 스택:', error instanceof Error ? error.stack : 'No stack trace')
-    
-    if (error && typeof error === 'object' && 'code' in error) {
-      console.error('Firebase 에러 코드:', (error as any).code)
-    }
-    
-    throw new Error(`상품 업로드에 실패했습니다: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
+// 더미 함수들
+export const addProduct = async (productData: any) => {
+  console.log('더미: 상품 추가', productData)
+  return { id: 'dummy_id', ...productData }
 }
 
-export const getProducts = async (limitCount: number = 20): Promise<Product[]> => {
-  try {
-    const q = query(
-      collection(db, 'products'),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    )
-    
-    const querySnapshot = await getDocs(q)
-    const products: Product[] = []
-    
-    querySnapshot.forEach((doc: any) => {
-      const data = doc.data()
-      products.push({
-        id: doc.id,
-        title: data.title,
-        description: data.description,
-        price: data.price,
-        category: data.category,
-        condition: data.condition,
-        location: data.location,
-        imageUrl: data.imageUrl,
-        userId: data.userId,
-        userName: data.userName,
-        createdAt: data.createdAt.toDate(),
-        tags: data.tags || []
-      })
-    })
-    
-    return products
-  } catch (error) {
-    console.error('상품 조회 에러:', error)
-    throw new Error('상품 조회에 실패했습니다.')
-  }
+export const getProducts = async () => {
+  console.log('더미: 상품 목록 조회')
+  return []
+}
+
+export const getProductById = async (id: string) => {
+  console.log('더미: 상품 조회', id)
+  return null
 }
 
 export const getProductsByCategory = async (category: string): Promise<Product[]> => {
   try {
-    const q = query(
-      collection(db, 'products'),
-      orderBy('createdAt', 'desc')
-    )
-    
-    const querySnapshot = await getDocs(q)
-    const products: Product[] = []
-    
-    querySnapshot.forEach((doc: any) => {
-      const data = doc.data()
-      if (data.category === category) {
-        products.push({
-          id: doc.id,
-          title: data.title,
-          description: data.description,
-          price: data.price,
-          category: data.category,
-          condition: data.condition,
-          location: data.location,
-          imageUrl: data.imageUrl,
-          userId: data.userId,
-          userName: data.userName,
-          createdAt: data.createdAt.toDate(),
-          tags: data.tags || []
-        })
-      }
-    })
-    
-    return products
+    // 더미 함수로 대체
+    console.log('더미: 카테고리별 상품 조회', category)
+    return []
   } catch (error) {
     console.error('카테고리별 상품 조회 에러:', error)
     throw new Error('상품 조회에 실패했습니다.')
