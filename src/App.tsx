@@ -1,39 +1,49 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import React from 'react'
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-blue-100 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-lg text-center">
-          <h1 className="text-3xl font-bold text-blue-600 mb-4">
-            🎉 성공!
-          </h1>
-          <p className="text-gray-700 mb-4">
-            애플리케이션이 정상적으로 작동하고 있습니다!
-          </p>
-          <div className="space-y-2 text-sm text-gray-600">
-            <p>✅ React: 정상</p>
-            <p>✅ React Router: 정상</p>
-            <p>✅ Tailwind CSS: 정상</p>
-            <p>✅ TypeScript: 정상</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center">
+      <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-md mx-4">
+        <div className="text-6xl mb-4">🎉</div>
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">
+          성공!
+        </h1>
+        <p className="text-gray-600 mb-6">
+          애플리케이션이 정상적으로 작동하고 있습니다!
+        </p>
+        
+        <div className="space-y-3 text-sm text-gray-700 bg-gray-50 p-4 rounded-lg mb-6">
+          <div className="flex items-center justify-between">
+            <span>React</span>
+            <span className="text-green-600 font-semibold">✅ 정상</span>
           </div>
-          <div className="mt-6 space-y-2">
-            <a 
-              href="/test" 
-              className="block w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
-            >
-              테스트 페이지
-            </a>
-            <a 
-              href="/simple-stt-test" 
-              className="block w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600"
-            >
-              STT 테스트
-            </a>
+          <div className="flex items-center justify-between">
+            <span>TypeScript</span>
+            <span className="text-green-600 font-semibold">✅ 정상</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Tailwind CSS</span>
+            <span className="text-green-600 font-semibold">✅ 정상</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Vite</span>
+            <span className="text-green-600 font-semibold">✅ 정상</span>
+          </div>
+        </div>
+        
+        <div className="space-y-3">
+          <button 
+            onClick={() => alert('버튼이 정상 작동합니다!')}
+            className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors font-medium"
+          >
+            테스트 버튼
+          </button>
+          <div className="text-xs text-gray-500">
+            배포 시간: {new Date().toLocaleString('ko-KR')}
           </div>
         </div>
       </div>
-    </Router>
+    </div>
   )
 }
 
