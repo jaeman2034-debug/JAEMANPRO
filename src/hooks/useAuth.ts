@@ -6,7 +6,7 @@ import {
   GoogleAuthProvider,
   signOut,
   onAuthStateChanged,
-  User
+  type User
 } from 'firebase/auth'
 import { auth } from '../services/firebase'
 
@@ -15,7 +15,7 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
       setUser(user)
       setLoading(false)
     })

@@ -1,6 +1,5 @@
 import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore'
-import { db } from './firebase'
-import { auth } from './firebase'
+import { db, auth } from '../firebase'
 
 export interface Product {
   id?: string
@@ -149,7 +148,7 @@ export const getProducts = async (limitCount: number = 20): Promise<Product[]> =
     const querySnapshot = await getDocs(q)
     const products: Product[] = []
     
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const data = doc.data()
       products.push({
         id: doc.id,
@@ -184,7 +183,7 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
     const querySnapshot = await getDocs(q)
     const products: Product[] = []
     
-    querySnapshot.forEach((doc) => {
+    querySnapshot.forEach((doc: any) => {
       const data = doc.data()
       if (data.category === category) {
         products.push({

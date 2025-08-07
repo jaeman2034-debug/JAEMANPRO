@@ -1,11 +1,22 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 const Home = () => {
+  const location = useLocation();
+  const selectedDomain = location.state?.selectedDomain;
+  const domainName = location.state?.domainName;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Hero Section */}
       <section className="pt-20 pb-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
+          {selectedDomain && (
+            <div className="mb-4 p-3 bg-blue-100 rounded-lg inline-block">
+              <p className="text-blue-800 font-medium">
+                🎯 선택된 지역: {domainName}
+              </p>
+            </div>
+          )}
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
             야고 스포츠
           </h1>

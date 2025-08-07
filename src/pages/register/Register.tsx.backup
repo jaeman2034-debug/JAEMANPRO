@@ -1,0 +1,1329 @@
+import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
+import { normalizeEmailInput, normalizeEmailId, isValidEmail } from '../../utils/emailNormalizer'
+
+// 음성 훅들을 안전하게 import
+import { useSpeechRecognition } from '../../hooks/useSpeechRecognition'
+import { useSpeechSynthesis } from '../../hooks/useSpeechSynthesis'
+
+const Register = () => {
+  const location = useLocation();
+  const selectedCountryDomain = location.state?.selectedDomain;
+  const countryName = location.state?.domainName;
+  
+  const [email, setEmail] = useState('')
+  const [emailId, setEmailId] = useState('') // 이메일 ID 부분
+  const [selectedDomain, setSelectedDomain] = useState('@gmail.com') // 선택된 도메인
+  const [showDomainDropdown, setShowDomainDropdown] = useState(false) // 도메인 드롭다운 표시 여부
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [lastProcessedText, setLastProcessedText] = useState('') // 마지막 처리된 텍스트 (중복 방지)
+  const lastProcessedTime = useRef<number>(0) // 마지막 처리 시간 (중복 방지)
+  const [inputMode, setInputMode] = useState<'email' | 'password' | 'confirmPassword'>('email') // 입력 모드 (이메일/비밀번호/확인비밀번호)
+  const [passwordMode, setPasswordMode] = useState(false) // 비밀번호 입력 모드
+  const [voiceError, setVoiceError] = useState(false)
+  const [showPassword, setShowPassword] = useState(false) // 비밀번호 노출 여부
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false) // 비밀번호 확인 노출 여부
+  
+  // 입력창 ref들
+  const emailIdRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const confirmPasswordRef = useRef<HTMLInputElement>(null)
+  
+  const { register, loginWithGoogle } = useAuth()
+  const navigate = useNavigate()
+  
+  // 도메인 목록
+  const domains = [
+    '@gmail.com',
+    '@naver.com', 
+    '@daum.net',
+    '@yahoo.com',
+    '@hotmail.com',
+    '@outlook.com'
+  ]
+  
+  // 음성 인식 및 TTS 훅
+  const { transcript, isListening, startListening, stopListening, resetTranscript, error: speechError } = useSpeechRecognition()
+  const { speak } = useSpeechSynthesis()
+
+  // 음성 인식 상태 디버깅 및 voiceError 설정
+  useEffect(() => {
+    console.log('🎤 음성 인식 상태 변경:', {
+      isListening,
+      transcript,
+      speechError
+    });
+    
+    // 음성 인식 에러가 있으면 voiceError 설정
+    if (speechError) {
+      setVoiceError(true);
+      console.log('🎤 voiceError 설정됨 (speechError):', true);
+    } else {
+      setVoiceError(false);
+      console.log('🎤 voiceError 설정됨 (speechError):', false);
+    }
+  }, [isListening, transcript, speechError]);
+
+  // 도메인 드롭다운 상태 디버깅
+  useEffect(() => {
+    console.log('🌐 showDomainDropdown 상태 변경:', showDomainDropdown);
+  }, [showDomainDropdown]);
+
+  // 음성 인식 결과 처리 (processVoiceCommand 함수 정의 후에 추가됨)
+
+  // 이메일 ID와 도메인 결합
+  useEffect(() => {
+    const fullEmail = emailId + selectedDomain
+    setEmail(fullEmail)
+    console.log('📧 완전한 이메일 생성:', fullEmail)
+    console.log('📧 emailId:', emailId)
+    console.log('📧 selectedDomain:', selectedDomain)
+  }, [emailId, selectedDomain])
+
+  // 회원가입 제출 처리 함수
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    if (password !== confirmPassword) {
+      setError('비밀번호가 일치하지 않습니다.')
+      setLoading(false)
+      return
+    }
+
+    const result = await register(email, password)
+    if (result.success) {
+      navigate('/home')
+    } else {
+      // Firebase 오류 메시지를 한국어로 변환
+      let koreanError = result.error
+      
+      if (result.error.includes('Password should be at least 6 characters')) {
+        koreanError = '비밀번호는 최소 6자 이상이어야 합니다.'
+      } else if (result.error.includes('auth/weak-password')) {
+        koreanError = '비밀번호가 너무 약합니다. 더 강한 비밀번호를 사용해주세요.'
+      } else if (result.error.includes('auth/email-already-in-use')) {
+        koreanError = '이미 사용 중인 이메일 주소입니다.'
+      } else if (result.error.includes('auth/invalid-email')) {
+        koreanError = '유효하지 않은 이메일 주소입니다.'
+      } else if (result.error.includes('auth/network-request-failed')) {
+        koreanError = '네트워크 연결에 실패했습니다. 인터넷 연결을 확인해주세요.'
+      } else if (result.error.includes('auth/too-many-requests')) {
+        koreanError = '너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해주세요.'
+      } else if (result.error.includes('auth/user-disabled')) {
+        koreanError = '비활성화된 계정입니다.'
+      } else if (result.error.includes('auth/operation-not-allowed')) {
+        koreanError = '허용되지 않은 작업입니다.'
+      } else if (result.error.includes('auth/invalid-password')) {
+        koreanError = '유효하지 않은 비밀번호입니다.'
+      } else if (result.error.includes('auth/user-not-found')) {
+        koreanError = '사용자를 찾을 수 없습니다.'
+      } else if (result.error.includes('auth/wrong-password')) {
+        koreanError = '잘못된 비밀번호입니다.'
+      } else if (result.error.includes('auth/account-exists-with-different-credential')) {
+        koreanError = '다른 인증 방법으로 이미 존재하는 계정입니다.'
+      } else if (result.error.includes('auth/requires-recent-login')) {
+        koreanError = '최근 로그인이 필요합니다.'
+      } else if (result.error.includes('auth/credential-already-in-use')) {
+        koreanError = '이미 사용 중인 인증 정보입니다.'
+      }
+      
+      setError(koreanError)
+    }
+    setLoading(false)
+  }
+
+  // 입력창 포커스 및 STT 시작 함수
+  const focusAndStartSTT = (ref: React.RefObject<HTMLInputElement>, message: string) => {
+    if (voiceError) {
+      alert('음성 기능을 사용할 수 없습니다.');
+      return;
+    }
+
+    console.log('🎯 focusAndStartSTT 호출됨')
+    console.log('🎯 ref 객체:', ref)
+    console.log('🎯 ref.current:', ref.current)
+    
+    if (ref.current) {
+      ref.current.focus()
+      ref.current.select() // 기존 텍스트 선택
+      console.log('🎯 입력창 포커스 이동 성공:', ref.current.id)
+    } else {
+      console.error('🎯 ref.current가 null입니다!')
+    }
+    
+    // TTS 중복 방지 및 최소화
+    const currentTime = Date.now();
+    if (lastProcessedTime.current && currentTime - lastProcessedTime.current < 1000) {
+      console.log('🔄 TTS 중복 방지:', message);
+      return;
+    }
+    lastProcessedTime.current = currentTime;
+    
+    if (!isListening) {
+      console.log('🎯 TTS 메시지:', message)
+      speak(message)
+    } else {
+      console.log('🎯 음성 인식 중 - TTS 생략')
+    }
+    
+    // STT 시작 (즉시 시작, 대기 시간 최소화)
+    if (isListening && stopListening) {
+      console.log('🎯 기존 음성 인식 중지')
+      stopListening()
+    }
+    
+    // 즉시 새로운 음성 인식 시작
+    setTimeout(() => {
+      console.log('🎯 새로운 음성 인식 시작')
+      if (startListening && !isListening) {
+        startListening()
+        console.log('🎤 STT 시작됨')
+      } else if (isListening) {
+        console.log('🎯 이미 음성 인식 중')
+      } else {
+        console.log('🎯 음성 인식 시작 조건 불충족')
+      }
+    }, 300) // 300ms로 더 단축
+  }
+
+  // 음성 명령 처리 함수
+  const processVoiceCommand = (transcript: string) => {
+    if (voiceError) return false;
+
+    const lowerTranscript = transcript.toLowerCase().trim()
+    console.log('🎤 음성 명령 처리 시작:', lowerTranscript)
+    console.log('🎤 전체 transcript:', transcript)
+    
+    // 한국어/영어 혼합 텍스트에서 명령어 추출
+    const extractCommands = (text: string) => {
+      const commands = []
+      const lowerText = text.toLowerCase();
+      
+      // 도메인 명령어를 최우선으로 처리 (단순하고 확실한 매칭)
+      if (lowerText.includes('gmail') || lowerText.includes('지메일') || lowerText.includes('구글')) {
+        commands.unshift('gmail');
+        console.log('🔍 Gmail 도메인 명령어 감지:', text);
+      }
+      
+      if (lowerText.includes('naver') || lowerText.includes('네이버') || lowerText.includes('네버')) {
+        commands.unshift('naver');
+        console.log('🔍 Naver 도메인 명령어 감지:', text);
+      }
+      
+      if (lowerText.includes('daum') || lowerText.includes('다음')) {
+        commands.unshift('daum');
+        console.log('🔍 Daum 도메인 명령어 감지:', text);
+      }
+      
+      if (lowerText.includes('yahoo') || lowerText.includes('야후') || lowerText.includes('야호')) {
+        commands.unshift('yahoo');
+        console.log('🔍 Yahoo 도메인 명령어 감지:', text);
+      }
+      
+      if (lowerText.includes('hanmail') || lowerText.includes('한메일')) {
+        commands.unshift('hanmail');
+        console.log('🔍 Hanmail 도메인 명령어 감지:', text);
+      }
+      
+      // 도메인 명령어가 감지되면 즉시 반환
+      if (commands.length > 0) {
+        console.log('🌐 도메인 명령어 감지됨 - 즉시 반환:', commands);
+        return commands;
+      }
+      
+      // 일반 명령어들
+      if (!showDomainDropdown && (lowerText.includes('이메일') || lowerText.includes('email') || lowerText.includes('아이디') || lowerText.includes('id'))) {
+        commands.push('이메일')
+      }
+      
+      if (lowerText.includes('비밀번호') || lowerText.includes('password') || lowerText.includes('비번')) {
+        commands.push('비밀번호')
+      }
+      
+      if (lowerText.includes('확인') || lowerText.includes('confirm')) {
+        commands.push('확인')
+      }
+      
+      if (lowerText.includes('도메인') || lowerText.includes('domain') || lowerText.includes('메인') || lowerText.includes('메일')) {
+        commands.push('도메인')
+      }
+      
+      if (lowerText.includes('다음') || lowerText.includes('next')) {
+        commands.push('다음')
+      }
+      
+      if (lowerText.includes('완료') || lowerText.includes('complete') || lowerText.includes('finish')) {
+        commands.push('완료')
+      }
+      
+      if (lowerText.includes('다시') || lowerText.includes('reset') || lowerText.includes('clear')) {
+        commands.push('다시')
+      }
+      
+      if (lowerText.includes('도움말') || lowerText.includes('help')) {
+        commands.push('도움말')
+      }
+      
+      if (lowerText.includes('가입') || lowerText.includes('register') || lowerText.includes('signup')) {
+        commands.push('가입')
+      }
+      
+      if (lowerText.includes('취소') || lowerText.includes('cancel')) {
+        commands.push('취소')
+      }
+      
+      return commands
+    }
+    
+    const foundCommands = extractCommands(lowerTranscript)
+    console.log('🔍 발견된 명령어들:', foundCommands)
+    console.log('🔍 명령어 개수:', foundCommands.length)
+    
+    // 명령어 처리 준비
+    if (foundCommands.length === 0) {
+      console.log('❌ 명령어를 찾을 수 없음');
+      return false;
+    }
+
+    const command = foundCommands[0];
+    const isDomainCommand = ['gmail', 'naver', 'daum', 'yahoo', 'hanmail'].includes(command);
+    
+    console.log('🎯 명령어 처리 시작:', command, '도메인 명령어:', isDomainCommand);
+    
+    // 도메인 명령어가 아닌 경우에만 중복 방지 적용
+    if (!isDomainCommand) {
+      if (lastProcessedText === command) {
+        console.log('🔄 명령어 중복 처리 방지:', command);
+        return true;
+      }
+      setLastProcessedText(command);
+    } else {
+      // 도메인 명령어는 항상 처리
+      setLastProcessedText('');
+    }
+    
+    // 명령어 처리 시작
+    console.log('🎯 처리할 명령어:', command)
+    console.log('🎯 전체 명령어 목록:', foundCommands)
+      
+      // 명령어별 처리
+      switch (command) {
+        case '이메일':
+          setShowDomainDropdown(false) // 도메인 드롭다운 닫기
+          console.log('📧 이메일 명령어 처리 시작')
+          console.log('📧 emailIdRef:', emailIdRef)
+          console.log('📧 emailIdRef.current:', emailIdRef.current)
+          setInputMode('email')
+          setPasswordMode(false)
+          focusAndStartSTT(emailIdRef, '이메일 ID 입력창이 활성화되었습니다. ID를 말씀해주세요.')
+          console.log('📧 이메일 ID 입력 모드 설정 완료')
+          return true
+          
+        case '비밀번호':
+          setShowDomainDropdown(false) // 도메인 드롭다운 닫기
+          setPasswordMode(true)
+          setInputMode('password')
+          focusAndStartSTT(passwordRef, '비밀번호 입력창이 활성화되었습니다. 비밀번호를 말씀해주세요.')
+          console.log('🔐 비밀번호 입력 모드')
+          return true
+          
+        case '확인':
+          if (passwordMode) {
+            setPasswordMode(false)
+            setInputMode('confirmPassword')
+            focusAndStartSTT(confirmPasswordRef, '비밀번호 확인 입력창이 활성화되었습니다. 확인 비밀번호를 말씀해주세요.')
+            console.log('🔐 비밀번호 확인 입력 모드')
+          } else {
+            // 비밀번호 확인 완료
+            speak('비밀번호 확인이 완료되었습니다.')
+            console.log('✅ 비밀번호 확인 완료')
+          }
+          return true
+          
+        case '도메인':
+          console.log('🌐 도메인 명령어 처리 시작');
+          console.log('🌐 현재 showDomainDropdown:', showDomainDropdown);
+          setShowDomainDropdown(true) // 도메인 드롭다운 열기
+          console.log('🌐 showDomainDropdown을 true로 설정');
+          
+          // TTS 에러 방지를 위해 setTimeout 사용
+          setTimeout(() => {
+            speak('도메인 선택 창이 열렸습니다. gmail, naver, daum 중 원하는 도메인을 말씀해주세요.')
+          }, 100);
+          
+          console.log('🌐 도메인 선택 모드 - 드롭다운 열림')
+          return true
+          
+        case 'gmail':
+          // 즉시 음성 인식 중지
+          if (isListening && stopListening) {
+            console.log('🎤 Gmail 명령어 처리로 음성 인식 즉시 중지');
+            stopListening();
+          }
+          
+          setSelectedDomain('@gmail.com')
+          setShowDomainDropdown(false) // 드롭다운 닫기
+          
+          // 이메일 ID 초기화 (누적된 도메인 키워드 제거)
+          setEmailId('jaeman2034'); // 원래 ID만 유지
+          console.log('🔄 Gmail 명령어 처리 후 이메일 ID 초기화');
+          
+          // transcript 초기화
+          if (resetTranscript) {
+            resetTranscript();
+            console.log('🔄 Gmail 명령어 처리 후 transcript 초기화');
+          }
+          
+          speak('Gmail 도메인이 선택되었습니다.', () => {
+            setTimeout(() => {
+              if (startListening) {
+                startListening();
+                console.log('🎤 TTS 완료 후 음성 인식 재시작');
+              }
+            }, 1000);
+          });
+          console.log('🎯 Gmail 도메인 선택됨')
+          
+          // 도메인 선택 완료 (자동 이동은 별도 useEffect에서 처리)
+          console.log('🔐 도메인 선택 완료:', selectedDomain)
+          console.log('🔐 현재 이메일 ID:', emailId)
+          
+          setLastProcessedText('')
+          return true
+          
+        case 'naver':
+          // 즉시 음성 인식 중지
+          if (isListening && stopListening) {
+            console.log('🎤 Naver 명령어 처리로 음성 인식 즉시 중지');
+            stopListening();
+          }
+          
+          setSelectedDomain('@naver.com')
+          setShowDomainDropdown(false) // 드롭다운 닫기
+          
+          // 이메일 ID 초기화 (누적된 도메인 키워드 제거)
+          setEmailId('jaeman2034'); // 원래 ID만 유지
+          console.log('🔄 Naver 명령어 처리 후 이메일 ID 초기화');
+          
+          // transcript 초기화
+          if (resetTranscript) {
+            resetTranscript();
+            console.log('🔄 Naver 명령어 처리 후 transcript 초기화');
+          }
+          
+          speak('Naver 도메인이 선택되었습니다.', () => {
+            setTimeout(() => {
+              if (startListening) {
+                startListening();
+                console.log('🎤 TTS 완료 후 음성 인식 재시작');
+              }
+            }, 1000);
+          });
+          console.log('🎯 Naver 도메인 선택됨')
+          
+          // 도메인 선택 완료 (자동 이동은 별도 useEffect에서 처리)
+          console.log('🔐 도메인 선택 완료:', selectedDomain)
+          console.log('🔐 현재 이메일 ID:', emailId)
+          
+          setLastProcessedText('')
+          return true
+          
+        case 'daum':
+          // 즉시 음성 인식 중지
+          if (isListening && stopListening) {
+            console.log('🎤 Daum 명령어 처리로 음성 인식 즉시 중지');
+            stopListening();
+          }
+          
+          setSelectedDomain('@daum.net')
+          setShowDomainDropdown(false) // 드롭다운 닫기
+          
+          // 이메일 ID 초기화 (누적된 도메인 키워드 제거)
+          setEmailId('jaeman2034'); // 원래 ID만 유지
+          console.log('🔄 Daum 명령어 처리 후 이메일 ID 초기화');
+          
+          // transcript 초기화
+          if (resetTranscript) {
+            resetTranscript();
+            console.log('🔄 Daum 명령어 처리 후 transcript 초기화');
+          }
+          
+          speak('Daum 도메인이 선택되었습니다.', () => {
+            setTimeout(() => {
+              if (startListening) {
+                startListening();
+                console.log('🎤 TTS 완료 후 음성 인식 재시작');
+              }
+            }, 1000);
+          });
+          console.log('🎯 Daum 도메인 선택됨')
+          
+          // 도메인 선택 완료 (자동 이동은 별도 useEffect에서 처리)
+          console.log('🔐 도메인 선택 완료:', selectedDomain)
+          console.log('🔐 현재 이메일 ID:', emailId)
+          
+          setLastProcessedText('')
+          return true
+          
+        case 'yahoo':
+          // 즉시 음성 인식 중지
+          if (isListening && stopListening) {
+            console.log('🎤 Yahoo 명령어 처리로 음성 인식 즉시 중지');
+            stopListening();
+          }
+          
+          setSelectedDomain('@yahoo.com')
+          setShowDomainDropdown(false) // 드롭다운 닫기
+          
+          // 이메일 ID 초기화 (누적된 도메인 키워드 제거)
+          setEmailId('jaeman2034'); // 원래 ID만 유지
+          console.log('🔄 Yahoo 명령어 처리 후 이메일 ID 초기화');
+          
+          // transcript 초기화
+          if (resetTranscript) {
+            resetTranscript();
+            console.log('🔄 Yahoo 명령어 처리 후 transcript 초기화');
+          }
+          
+          speak('Yahoo 도메인이 선택되었습니다.', () => {
+            setTimeout(() => {
+              if (startListening) {
+                startListening();
+                console.log('🎤 TTS 완료 후 음성 인식 재시작');
+              }
+            }, 1000);
+          });
+          console.log('🎯 Yahoo 도메인 선택됨')
+          
+          // 도메인 선택 완료 (자동 이동은 별도 useEffect에서 처리)
+          console.log('🔐 도메인 선택 완료:', selectedDomain)
+          console.log('🔐 현재 이메일 ID:', emailId)
+          
+          setLastProcessedText('')
+          return true
+          
+        case 'hanmail':
+          // 즉시 음성 인식 중지
+          if (isListening && stopListening) {
+            console.log('🎤 Hanmail 명령어 처리로 음성 인식 즉시 중지');
+            stopListening();
+          }
+          
+          setSelectedDomain('@hanmail.net')
+          setShowDomainDropdown(false) // 드롭다운 닫기
+          
+          // 이메일 ID 초기화 (누적된 도메인 키워드 제거)
+          setEmailId('jaeman2034'); // 원래 ID만 유지
+          console.log('🔄 Hanmail 명령어 처리 후 이메일 ID 초기화');
+          
+          // transcript 초기화
+          if (resetTranscript) {
+            resetTranscript();
+            console.log('🔄 Hanmail 명령어 처리 후 transcript 초기화');
+          }
+          
+          speak('Hanmail 도메인이 선택되었습니다.', () => {
+            setTimeout(() => {
+              if (startListening) {
+                startListening();
+                console.log('🎤 TTS 완료 후 음성 인식 재시작');
+              }
+            }, 1000);
+          });
+          console.log('🎯 Hanmail 도메인 선택됨')
+          
+          // 도메인 선택 완료 (자동 이동은 별도 useEffect에서 처리)
+          console.log('🔐 도메인 선택 완료:', selectedDomain)
+          console.log('🔐 현재 이메일 ID:', emailId)
+          
+          setLastProcessedText('')
+          return true
+          
+        case '완료':
+          speak('입력이 완료되었습니다.')
+          console.log('✅ 입력 완료')
+          return true
+          
+        case '다시':
+          setEmailId('')
+          setPassword('')
+          setConfirmPassword('')
+          setLastProcessedText('')
+          setEmail('')
+          setInputMode('email')
+          setPasswordMode(false)
+          speak('입력이 초기화되었습니다.')
+          console.log('🔄 입력 초기화')
+          return true
+          
+        case '도움말':
+          speak('이메일, 비밀번호, 확인 등의 명령을 사용하여 각 입력창으로 이동할 수 있습니다.')
+          console.log('❓ 도움말 안내')
+          return true
+          
+        case '다음':
+          if (inputMode === 'email' && emailId) {
+            setInputMode('password')
+            setPasswordMode(true)
+            // 간단한 안내만 하고 즉시 이동
+            focusAndStartSTT(passwordRef, '비밀번호 입력창으로 이동했습니다.')
+            console.log('🔐 이메일 → 비밀번호 모드로 이동')
+          } else if (inputMode === 'password' && passwordMode && password) {
+            setPasswordMode(false)
+            // 간단한 안내만 하고 즉시 이동
+            focusAndStartSTT(confirmPasswordRef, '확인 입력창으로 이동했습니다.')
+            console.log('🔐 비밀번호 → 확인 모드로 이동')
+          } else {
+            // 조건 불충족 시 간단한 안내만
+            if (!isListening) {
+              speak('정보를 먼저 입력해주세요.')
+            }
+            console.log('⚠️ 현재 단계 정보 누락')
+          }
+          return true
+          
+        case '가입':
+          // 중복 실행 방지
+          if (lastProcessedText === '가입') {
+            console.log('🔄 가입 명령어 중복 실행 방지');
+            return true;
+          }
+          setLastProcessedText('가입');
+          
+          if (email && password && confirmPassword) {
+            speak('회원가입을 진행합니다.')
+            console.log('🚀 회원가입 진행')
+            const submitEvent = new Event('submit') as any
+            handleSubmit(submitEvent)
+          } else {
+            speak('이메일과 비밀번호를 모두 입력해주세요.')
+            console.log('⚠️ 필수 정보 누락')
+          }
+          return true
+          
+        case '취소':
+          speak('회원가입이 취소되었습니다.')
+          console.log('❌ 회원가입 취소')
+          return true
+      }
+    }
+    
+    console.log('❌ 명령어를 찾을 수 없음')
+    return false
+  }
+
+  // 음성 인식 결과 처리
+  useEffect(() => {
+    if (voiceError || !transcript) {
+      return;
+    }
+
+    // 중복 처리 방지 (음성 인식 중에는 더 엄격하게)
+    const currentTime = Date.now();
+    const timeThreshold = isListening ? 2000 : 1000; // 음성 인식 중에는 2초, 아닐 때는 1초
+    
+    if (lastProcessedTime.current && currentTime - lastProcessedTime.current < timeThreshold) {
+      console.log('🔄 중복 처리 방지:', transcript, `(${timeThreshold}ms)`);
+      return;
+    }
+    lastProcessedTime.current = currentTime;
+
+    console.log('🎤 음성 인식 결과 처리:', transcript)
+    console.log('🎤 현재 isListening:', isListening)
+    console.log('🎤 현재 voiceError:', voiceError)
+    console.log('🎤 현재 inputMode:', inputMode)
+    console.log('🎤 현재 passwordMode:', passwordMode)
+    
+    // 먼저 음성 명령 처리 (한국어/영어 혼합 텍스트에서 명령어 추출)
+    const commandFound = processVoiceCommand(transcript)
+    if (commandFound) {
+      console.log('✅ 음성 명령 처리 완료')
+      resetTranscript()
+      return
+    }
+    
+              // 음성 인식 중에는 모든 처리 완전 차단
+    if (isListening) {
+      console.log('🎤 음성 인식 중 - 모든 처리 완전 차단');
+      console.log('🎤 현재 transcript:', transcript);
+      console.log('🎤 음성 인식 중단 - transcript 처리 건너뜀');
+      console.log('🎤 음성 인식 중단 - 이메일 ID 입력 처리 건너뜀');
+      return;
+    }
+    
+    // 도메인 명령어가 포함된 경우 추가 확인
+    const domainRegex = /\b(gmail|naver|daum|지메일|네이버|다음|구글|yahoo)\b/i;
+    const hasDomainCommand = domainRegex.test(transcript);
+    
+    if (hasDomainCommand) {
+      console.log('🌐 도메인 명령어 재감지 - 명령어 처리로 재시도:', transcript);
+      console.log('🌐 현재 lastProcessedText:', lastProcessedText);
+      console.log('🌐 감지된 도메인 명령어:', transcript.match(domainRegex));
+      
+      // lastProcessedText 초기화 후 재시도
+      setLastProcessedText('');
+      
+      // 도메인 명령어가 있으면 다시 명령어 처리 시도
+      const retryCommandFound = processVoiceCommand(transcript);
+      if (retryCommandFound) {
+        console.log('✅ 도메인 명령어 재처리 완료');
+        resetTranscript();
+        return;
+      } else {
+        console.log('❌ 도메인 명령어 재처리 실패');
+      }
+    }
+    
+    // 명령이 아닌 경우 현재 활성화된 입력창에 따라 처리
+    if (inputMode === 'email') {
+      // 도메인 선택 모드 중이면 도메인 명령으로 처리
+      if (showDomainDropdown) {
+        console.log('🌐 도메인 선택 모드 - 일반 텍스트를 도메인 명령으로 처리')
+        return; // 명령어 처리로 넘어가도록
+      }
+      
+      // 이메일 ID 입력으로 처리 (도메인 키워드 완전 차단)
+      const domainKeywords = [
+        // 영어 도메인
+        'gmail', 'naver', 'daum', 'yahoo', 'hanmail',
+        // 한국어 도메인 (정확한 발음)
+        '지메일', '네이버', '다음', '구글', '야후', '한메일',
+        // 한국어 발음 변형 (음성 인식 오류 대응)
+        '지메', '메일', '네버', '네이', '다음메일',
+        '야호', '양호', '야후',
+        '레버', '레비', '네비', '네브',
+        '지밀', '지메이', '지메일',
+        '다음메', '다음메일', '다음메일',
+        '한메', '한메일', '한메일넷'
+      ];
+      
+      // 정규식으로 정확한 도메인 명령어 감지 (확장된 패턴)
+      const domainRegex = /\b(gmail|naver|daum|yahoo|hanmail|지메일|네이버|다음|구글|야후|한메일|지메|메일|네버|네이|다음메일|야호|양호|레버|레비|네비|네브|지밀|지메이|다음메|한메|한메일넷)\b/i;
+      const hasDomainCommand = domainRegex.test(transcript);
+      
+      if (hasDomainCommand) {
+        console.log('🌐 도메인 명령어 감지됨 - 이메일 ID 입력 완전 차단:', transcript);
+        console.log('🌐 차단된 도메인 명령어:', transcript.match(domainRegex));
+        return; // 도메인 명령어가 있으면 이메일 ID 입력 처리하지 않음
+      }
+      
+      // 추가 검증: 도메인 키워드가 포함된 경우 완전 차단
+      const hasAnyDomainKeyword = domainKeywords.some(keyword => 
+        transcript.toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      if (hasAnyDomainKeyword) {
+        console.log('🌐 도메인 키워드 감지됨 - 이메일 ID 입력 완전 차단:', transcript);
+        console.log('🌐 차단된 도메인 키워드:', domainKeywords.filter(keyword => 
+          transcript.toLowerCase().includes(keyword.toLowerCase())
+        ));
+        
+        // 도메인 키워드가 감지되면 즉시 음성 인식 중지
+        if (isListening && stopListening) {
+          console.log('🎤 도메인 키워드 감지로 음성 인식 즉시 중지');
+          stopListening();
+        }
+        
+        // transcript 즉시 초기화
+        if (resetTranscript) {
+          resetTranscript();
+          console.log('🔄 도메인 키워드 감지 후 transcript 즉시 초기화');
+        }
+        
+        // 도메인 키워드가 포함된 transcript는 완전히 무시
+        console.log('🌐 도메인 키워드 포함 transcript 완전 무시:', transcript);
+        return; // 도메인 키워드가 있으면 이메일 ID 입력 처리하지 않음
+      }
+      
+      const normalizedText = normalizeEmailId(transcript)
+      if (normalizedText && normalizedText.trim()) {
+        setEmailId(normalizedText)
+        // 음성 인식 중에는 TTS 최소화 (입력 확인만)
+        if (!isListening) {
+          speak(`이메일 ID ${normalizedText}이 입력되었습니다.`)
+        }
+        console.log('📧 이메일 ID 입력됨:', normalizedText)
+        
+        // 완전한 이메일 주소가 완성되었는지 확인
+        const completeEmail = `${normalizedText}${selectedDomain}`
+        console.log('📧 완성된 이메일 주소:', completeEmail)
+        
+        // 이메일 ID 입력 완료 (자동 이동은 별도 useEffect에서 처리)
+        console.log('📧 이메일 ID 입력됨:', normalizedText)
+        console.log('📧 현재 선택된 도메인:', selectedDomain)
+        console.log('📧 완성된 이메일:', `${normalizedText}${selectedDomain}`)
+      }
+    } else if (inputMode === 'password') {
+      // 비밀번호 입력으로 처리
+      if (passwordMode) {
+        const passwordText = transcript.trim()
+        setPassword(passwordText)
+        // 음성 인식 중에는 TTS 최소화
+        if (!isListening) {
+          speak('비밀번호가 입력되었습니다.')
+        }
+        console.log('🔐 비밀번호 입력됨:', passwordText)
+        
+        // 비밀번호가 충분한 길이(최소 4자)이면 자동으로 다음 단계로 이동
+        if (passwordText.length >= 4) {
+          setTimeout(() => {
+            setPasswordMode(false)
+            focusAndStartSTT(confirmPasswordRef, '비밀번호 확인 입력창이 활성화되었습니다. 확인 비밀번호를 말씀해주세요.')
+            console.log('🔐 비밀번호 입력 완료 - 자동으로 확인 모드로 이동')
+          }, 1000) // 1초 후 자동 이동
+        } else {
+          console.log('⏳ 비밀번호 길이 부족 - 추가 입력 대기')
+        }
+      } else {
+        const confirmPasswordText = transcript.trim()
+        setConfirmPassword(confirmPasswordText)
+        // 음성 인식 중에는 TTS 최소화
+        if (!isListening) {
+          speak('확인 비밀번호가 입력되었습니다.')
+        }
+        console.log('🔐 확인 비밀번호 입력됨:', confirmPasswordText)
+        
+        // 비밀번호와 확인 비밀번호가 일치하고 충분한 길이이면 자동으로 가입 진행
+        if (password && confirmPasswordText && password === confirmPasswordText && confirmPasswordText.length >= 4) {
+          setTimeout(() => {
+            if (email && password && confirmPasswordText) {
+              speak('비밀번호가 일치합니다. 모든 정보가 입력되었습니다. 회원가입을 진행합니다.')
+              console.log('🚀 모든 정보 입력 완료 - 자동으로 회원가입 진행')
+              const submitEvent = new Event('submit') as any
+              handleSubmit(submitEvent)
+            } else {
+              speak('입력 정보가 누락되었습니다. 다시 확인해주세요.')
+              console.log('⚠️ 입력 정보 누락 - 가입 진행 불가')
+            }
+          }, 1500) // 1.5초 후 자동 가입
+        } else if (password && confirmPasswordText && password !== confirmPasswordText) {
+          speak('비밀번호가 일치하지 않습니다. 다시 입력해주세요.')
+          console.log('❌ 비밀번호 불일치 - 재입력 필요')
+        } else {
+          console.log('⏳ 비밀번호 확인 길이 부족 - 추가 입력 대기')
+        }
+      }
+    }
+    
+    resetTranscript()
+  }, [transcript, isListening, speak, resetTranscript, inputMode, passwordMode, voiceError])
+
+      // 도메인 선택 시 자동으로 비밀번호 모드로 이동
+    useEffect(() => {
+      // 도메인이 선택되고 이메일 ID가 있으면 바로 비밀번호 모드로 이동
+      if (inputMode === 'email' && 
+          emailId && 
+          emailId.trim() && 
+          selectedDomain && 
+          selectedDomain !== '@gmail.com') {
+        
+        console.log('🌐 도메인 선택 감지 - 자동 이동 준비')
+        console.log('📧 이메일 ID:', emailId)
+        console.log('📧 선택된 도메인:', selectedDomain)
+        console.log('📧 완성된 이메일:', `${emailId}${selectedDomain}`)
+        
+        // 1초 후 자동으로 비밀번호 모드로 이동
+        const timer = setTimeout(() => {
+          setInputMode('password')
+          setPasswordMode(true)
+          focusAndStartSTT(passwordRef, '비밀번호 입력창이 활성화되었습니다. 비밀번호를 말씀해주세요.')
+          console.log('🔐 도메인 선택 완료 - 자동으로 비밀번호 모드로 이동')
+        }, 1000)
+        
+        return () => clearTimeout(timer)
+      }
+    }, [selectedDomain, inputMode, focusAndStartSTT, passwordRef])
+
+    // 비밀번호 완성 시 자동으로 확인 비밀번호로 이동
+    useEffect(() => {
+      // 비밀번호 모드이고 비밀번호가 4자 이상이면 자동으로 확인 비밀번호로 이동
+      if (inputMode === 'password' && 
+          passwordMode && 
+          password && 
+          password.length >= 4) {
+        
+        console.log('🔐 비밀번호 완성 감지 - 자동 이동 준비')
+        console.log('🔐 비밀번호:', password)
+        console.log('🔐 비밀번호 길이:', password.length)
+        
+        // 1초 후 자동으로 확인 비밀번호 모드로 이동
+        const timer = setTimeout(() => {
+          setInputMode('confirmPassword')
+          setPasswordMode(false)
+          focusAndStartSTT(confirmPasswordRef, '비밀번호 확인 입력창이 활성화되었습니다. 비밀번호를 다시 말씀해주세요.')
+          console.log('🔐 비밀번호 완성 - 자동으로 확인 비밀번호 모드로 이동')
+        }, 1000)
+        
+        return () => clearTimeout(timer)
+      }
+    }, [password, inputMode, passwordMode, focusAndStartSTT, confirmPasswordRef])
+
+    // 비밀번호 확인 완료 시 자동으로 회원가입 진행
+    useEffect(() => {
+      // 확인 비밀번호 모드이고 비밀번호가 일치하면 자동으로 회원가입 진행
+      if (inputMode === 'confirmPassword' && 
+          !passwordMode && 
+          password && 
+          confirmPassword && 
+          password === confirmPassword) {
+        
+        console.log('✅ 비밀번호 확인 완료 감지 - 자동 회원가입 준비')
+        console.log('🔐 비밀번호:', password)
+        console.log('🔐 확인 비밀번호:', confirmPassword)
+        
+        // 1초 후 자동으로 회원가입 진행
+        const timer = setTimeout(() => {
+          speak('비밀번호 확인이 완료되었습니다. 회원가입을 진행합니다.')
+          console.log('🚀 자동 회원가입 진행')
+          const submitEvent = new Event('submit') as any
+          handleSubmit(submitEvent)
+        }, 1000)
+        
+        return () => clearTimeout(timer)
+      }
+    }, [confirmPassword, inputMode, passwordMode, password, handleSubmit])
+
+  // 실시간 텍스트 표시
+  useEffect(() => {
+    if (voiceError || !transcript || !isListening) {
+      return;
+    }
+
+    console.log('🔤 원본 인식 텍스트:', transcript)
+    
+    // "종료되었습니다" 텍스트가 포함된 경우 무시
+    if (transcript.includes('종료되었습니다') || transcript.includes('종료')) {
+      console.log('🔄 종료 메시지 포함된 텍스트 무시:', transcript)
+      return
+    }
+    
+    // 음성 명령이 포함된 경우 실시간 표시하지 않음
+    const lowerTranscript = transcript.toLowerCase()
+    if (lowerTranscript.includes('gmail') || lowerTranscript.includes('naver') || 
+        lowerTranscript.includes('daum') || lowerTranscript.includes('yahoo') || 
+        lowerTranscript.includes('hotmail') || lowerTranscript.includes('outlook') ||
+        lowerTranscript.includes('완료') || lowerTranscript.includes('다시') || 
+        lowerTranscript.includes('도움말') || lowerTranscript.includes('비밀번호') ||
+        lowerTranscript.includes('확인') || lowerTranscript.includes('가입') || 
+        lowerTranscript.includes('취소') || lowerTranscript.includes('이메일') ||
+        lowerTranscript.includes('아이디')) {
+      console.log('🔄 명령어 포함된 텍스트 실시간 표시 안함:', transcript)
+      return
+    }
+    
+    // 현재 활성화된 입력창에 따라 실시간 표시
+    if (inputMode === 'email') {
+      // 이메일 ID 입력창에 실시간 표시
+      const normalizedText = normalizeEmailId(transcript)
+      console.log('🔤 실시간 정규화된 텍스트:', normalizedText)
+      
+      // 중복 처리 방지
+      if (normalizedText === lastProcessedText) {
+        console.log('🔄 중복 텍스트 무시:', normalizedText)
+        return
+      }
+      
+      // 정규화된 텍스트가 있고, @가 포함되지 않은 경우 ID로 처리
+      if (normalizedText && normalizedText.trim() && !normalizedText.includes('@')) {
+        setEmailId(normalizedText)
+        setLastProcessedText(normalizedText)
+        console.log('📧 실시간 이메일 ID 업데이트:', normalizedText)
+      } else if (transcript.trim() && !transcript.includes('@')) {
+        // 정규화가 실패했지만 원본 텍스트가 있는 경우 원본 사용
+        setEmailId(transcript.trim())
+        setLastProcessedText(transcript.trim())
+        console.log('📧 원본 텍스트로 이메일 ID 업데이트:', transcript.trim())
+      }
+    } else if (inputMode === 'password') {
+      // 비밀번호 입력창에 실시간 표시
+      if (passwordMode) {
+        // 비밀번호 입력 중
+        setPassword(transcript.trim())
+        console.log('🔐 실시간 비밀번호 업데이트:', transcript.trim())
+      } else {
+        // 비밀번호 확인 입력 중
+        setConfirmPassword(transcript.trim())
+        console.log('🔐 실시간 비밀번호 확인 업데이트:', transcript.trim())
+      }
+    } else if (inputMode === 'confirmPassword') {
+      // 비밀번호 확인 입력창에 실시간 표시
+      setConfirmPassword(transcript.trim())
+      console.log('🔐 실시간 비밀번호 확인 업데이트 (confirmPassword 모드):', transcript.trim())
+    }
+  }, [transcript, isListening, lastProcessedText, inputMode, voiceError])
+
+  // 도메인 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (!target.closest('.domain-dropdown')) {
+        setShowDomainDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  // Google 로그인 처리
+  const handleGoogleLogin = async () => {
+    setLoading(true)
+    setError('')
+    
+    const result = await loginWithGoogle()
+    if (result.success) {
+      navigate('/home')
+    } else {
+      setError(result.error)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="max-w-md w-full">
+        <div className="card">
+          {/* 뒤로 가기 버튼 */}
+          <div className="mb-4">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              스타트 화면으로 돌아가기
+            </button>
+          </div>
+          
+          <div className="text-center mb-8">
+            {selectedCountryDomain && (
+              <div className="mb-4 p-3 bg-blue-100 rounded-lg">
+                <p className="text-blue-800 font-medium">
+                  🎯 선택된 지역: {countryName}
+                </p>
+              </div>
+            )}
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">야고 스포츠</h1>
+            <p className="text-gray-600">회원가입하여 서비스를 이용하세요</p>
+          </div>
+
+          {/* 음성 인식 상태 표시 */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${voiceError ? 'bg-gray-400' : isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                <span className="text-sm text-gray-700">
+                  {voiceError 
+                    ? '음성 기능 사용 불가' 
+                    : isListening 
+                    ? `음성 인식 중... (${inputMode === 'email' ? '이메일' : '비밀번호'} 모드)` 
+                    : '음성 인식 대기 중'
+                  }
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // 중복 클릭 방지
+                  const currentTime = Date.now();
+                  if (lastProcessedTime.current && currentTime - lastProcessedTime.current < 2000) {
+                    console.log('🔄 시작 버튼 중복 클릭 방지');
+                    return;
+                  }
+                  lastProcessedTime.current = currentTime;
+                  
+                  console.log('🎤 버튼 클릭 이벤트 발생!');
+                  console.log('🎤 voiceError 상태:', voiceError);
+                  console.log('🎤 useSpeechRecognition:', !!useSpeechRecognition);
+                  console.log('🎤 useSpeechSynthesis:', !!useSpeechSynthesis);
+                  console.log('🎤 speechError:', speechError);
+                  
+                  if (voiceError) {
+                    console.log('🎤 음성 기능 사용 불가');
+                    alert('음성 기능을 사용할 수 없습니다.');
+                    return;
+                  }
+
+                  console.log('🎤 시작 버튼 클릭됨')
+                  console.log('🎤 현재 isListening:', isListening)
+                  console.log('🎤 현재 inputMode:', inputMode)
+                  console.log('🎤 startListening 함수:', !!startListening)
+                  console.log('🎤 stopListening 함수:', !!stopListening)
+                  
+                  if (isListening) {
+                    console.log('🎤 음성 인식 중지 시도')
+                    stopListening()
+                  } else {
+                    console.log('🎤 음성 인식 시작 시도')
+                    // 음성 인식 재시작 시 현재 입력 모드 유지 (초기화하지 않음)
+                    console.log('🎤 현재 입력 모드 유지:', inputMode)
+                    
+                    // 음성 인식 시작 전에 TTS 안내 (최소화)
+                    if (!isListening) {
+                      speak('음성 인식이 시작되었습니다. 이메일, 비밀번호 등의 명령을 말씀해주세요.');
+                    }
+                    
+                    setTimeout(() => {
+                      startListening()
+                      console.log('🎤 음성 인식 실제 시작됨')
+                    }, 1000);
+                  }
+                }}
+                disabled={voiceError}
+                className={`px-3 py-1 text-sm rounded transition-colors cursor-pointer relative z-10 ${
+                  voiceError 
+                    ? 'bg-gray-400 text-white cursor-not-allowed' 
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
+                style={{ 
+                  pointerEvents: voiceError ? 'none' : 'auto',
+                  zIndex: 1000
+                }}
+              >
+                {voiceError ? '사용 불가' : isListening ? '중지' : '시작'}
+              </button>
+            </div>
+          </div>
+
+          {/* 음성 명령 안내 */}
+          <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">🎤 음성 명령 사용법</h3>
+            <div className="text-xs text-gray-600 space-y-1">
+              <p><strong>자동 진행:</strong> 이메일 완성 → 비밀번호(4자↑) → 확인(일치) → 자동 가입</p>
+              <p><strong>도메인:</strong> "gmail", "naver", "daum", "yahoo", "hanmail" (음성으로 선택)</p>
+              <p><strong>수동 제어:</strong> "다음", "완료", "다시", "도움말", "가입", "취소"</p>
+              {voiceError && (
+                <p className="text-red-500 mt-2">
+                  ⚠️ 음성 기능을 사용할 수 없습니다. 수동으로 입력해주세요.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                이메일
+              </label>
+              <div className="flex space-x-2">
+                {/* 이메일 ID 입력창 */}
+                <div className="flex-1">
+                  <input
+                    ref={emailIdRef}
+                    type="text"
+                    id="emailId"
+                    value={emailId}
+                    onChange={(e) => setEmailId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder={isListening ? "음성 인식 중..." : "이메일 ID (음성으로 입력 가능)"}
+                    required
+                  />
+                </div>
+                
+                {/* 도메인 드롭다운 */}
+                <div className="relative domain-dropdown">
+                  <button
+                    type="button"
+                    onClick={() => setShowDomainDropdown(!showDomainDropdown)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent min-w-[140px]"
+                  >
+                    {selectedDomain}
+                    <span className="ml-2">▼</span>
+                  </button>
+                  
+                  {/* 드롭다운 메뉴 */}
+                  {showDomainDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-10">
+                      {domains.map((domain) => (
+                        <button
+                          key={domain}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDomain(domain)
+                            setShowDomainDropdown(false)
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                        >
+                          {domain}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* 완성된 이메일 표시 */}
+              {emailId && (
+                <div className="mt-2 text-sm text-gray-600">
+                  완성된 이메일: <span className="font-medium text-primary-600">{email}</span>
+                </div>
+              )}
+              
+              {/* 수동으로 비밀번호 입력창으로 이동하는 버튼 */}
+              {inputMode === 'email' && emailId && emailId.trim() && selectedDomain && 
+               selectedDomain !== '@gmail.com' && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInputMode('password')
+                      setPasswordMode(true)
+                      focusAndStartSTT(passwordRef, '비밀번호 입력창이 활성화되었습니다. 비밀번호를 말씀해주세요.')
+                      console.log('🔐 수동으로 비밀번호 모드로 이동')
+                    }}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    비밀번호 입력으로 이동
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                비밀번호
+              </label>
+              <div className="relative">
+                <input
+                  ref={passwordRef}
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder={passwordMode ? "음성으로 비밀번호를 말씀해주세요" : "비밀번호를 입력하세요"}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                비밀번호 확인
+              </label>
+              <div className="relative">
+                <input
+                  ref={confirmPasswordRef}
+                  type={showConfirmPassword ? "text" : "password"}
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  placeholder={passwordMode ? "음성으로 확인 비밀번호를 말씀해주세요" : "비밀번호를 다시 입력하세요"}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                >
+                  {showConfirmPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="text-red-600 text-sm text-center">
+                {error}
+              </div>
+            )}
+
+            {speechError && (
+              <div className="text-red-600 text-sm text-center">
+                음성 인식 오류: {speechError}
+              </div>
+            )}
+
+            {transcript && (
+              <div className="text-blue-600 text-sm text-center">
+                인식된 음성: {transcript}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary-500 text-white py-3 px-4 rounded-lg hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? '처리 중...' : '회원가입'}
+            </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">또는</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full bg-white text-gray-700 py-3 px-4 rounded-lg border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span>Google로 회원가입</span>
+            </button>
+
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                이미 계정이 있으신가요?{' '}
+                <Link to="/login" className="text-primary-500 hover:text-primary-600 font-medium">
+                  로그인하기
+                </Link>
+              </p>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Register 
