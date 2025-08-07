@@ -22,7 +22,7 @@ interface DummyUser {
 }
 
 // 더미 함수들
-export const registerUser = async (email: string, password: string): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
+export const registerUser = async (email: string, _password: string): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
   console.log('더미: 회원가입 시도', email)
   return {
     success: false,
@@ -30,7 +30,7 @@ export const registerUser = async (email: string, password: string): Promise<{ s
   }
 }
 
-export const loginUser = async (email: string, password: string): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
+export const loginUser = async (email: string, _password: string): Promise<{ success: boolean; user?: DummyUser; error?: any }> => {
   console.log('더미: 로그인 시도', email)
   return {
     success: false,
