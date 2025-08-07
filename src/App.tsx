@@ -41,37 +41,14 @@ const ErrorFallback = ({ error }: { error: Error }) => {
 }
 
 // 안전한 컴포넌트 래퍼
-const SafeComponent = ({ Component }: { Component: React.ComponentType, fallback?: React.ComponentType }) => {
-  const [error, setError] = useState<Error | null>(null)
-  
-  if (error) {
-    return <ErrorFallback error={error} />
-  }
-  
-  try {
-    return <Component />
-  } catch (err) {
-    console.error('컴포넌트 렌더링 오류:', err)
-    setError(err instanceof Error ? err : new Error(String(err)))
-    return <ErrorFallback error={err instanceof Error ? err : new Error(String(err))} />
-  }
+const SafeComponent = ({ Component }: { Component: React.ComponentType }) => {
+  return <Component />
 }
 
 function App() {
-  const [currentPath, setCurrentPath] = useState('')
-  
-  useEffect(() => {
-    setCurrentPath(window.location.pathname)
-    console.log('현재 경로:', window.location.pathname)
-  }, [])
-
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
-        {/* 디버깅 정보 */}
-        <div className="fixed top-0 right-0 bg-blue-500 text-white p-2 text-xs z-50">
-          경로: {currentPath}
-        </div>
         
         <Routes>
           <Route path="/" element={<SafeComponent Component={StartScreen} />} />
